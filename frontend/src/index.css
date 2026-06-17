@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-cyber-black: #05070a;
+  --color-cyber-dark: #0c1220;
+  --color-cyber-dark-card: #121b2d;
+  --color-cyber-blue: #2563eb;
+  --color-cyber-blue-dark: #1d4ed8;
+  --color-cyber-cyan: #06b6d4;
+  --color-cyber-cyan-dark: #0891b2;
+  --color-cyber-neon-cyan: #00f0ff;
+  --color-cyber-neon-blue: #3b82f6;
+  --color-cyber-green: #10b981;
+  --color-cyber-red: #ef4444;
+  
+  --font-sans: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Fira Code", monospace;
+  
+  --animate-cyber-pulse: cyber-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-scanline: scanline 8s linear infinite;
+}
+
+@keyframes cyber-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.4));
+  }
+  50% {
+    opacity: .8;
+    filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.8));
+  }
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Modern styling tweaks */
+
+
+html, body {
+  background-color: #05070a;
+  color: #f1f5f9;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 20% 80%, rgba(6, 182, 212, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Custom Cyberpunk Utilities */
+.cyber-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+}
+
+.cyber-glow-blue {
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.25);
+  border: 1px solid rgba(37, 99, 235, 0.4);
+}
+
+.cyber-glow-cyan {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+}
+
+.cyber-glow-text-cyan {
+  text-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+}
+
+.cyber-glow-text-blue {
+  text-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+}
+
+/* Hide default Vite page centering or constraints */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
