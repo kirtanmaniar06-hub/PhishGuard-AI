@@ -17,14 +17,22 @@ from app.core.config import settings
 from app.core.logging import logger
 
 # ─── Async Engine Setup ──────────────────────────────────
-# Using the configured DATABASE_URL (must support asyncpg)
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    echo=settings.DEBUG,
-    future=True,
-)
+# Supporting SQLite fallback dynamically for local development
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=settings.DEBUG,
+        future=True,
+    )
+else:
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        pool_size=settings.DATABASE_POOL_SIZE,
+        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+        echo=settings.DEBUG,
+        future=True,
+    )
 
 # ─── Session Factory ─────────────────────────────────────
 # expire_on_commit=False is crucial for async contexts

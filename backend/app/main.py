@@ -28,7 +28,18 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info("Starting up PhishGuard AI Application Server...")
 
-    # 2. Seed default superadmin if configured and not present in DB
+    # 2. Setup SQLite tables automatically if configured
+    if settings.DATABASE_URL.startswith("sqlite"):
+        try:
+            from app.database.base import Base
+            from app.database.session import engine
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("SQLite database tables initialized successfully.")
+        except Exception as db_err:
+            logger.error(f"Failed to auto-initialize SQLite tables: {db_err}")
+
+    # 3. Seed default superadmin if configured and not present in DB
     async with SessionLocal() as db:
         try:
             admin_email = settings.FIRST_ADMIN_EMAIL
