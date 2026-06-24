@@ -6,7 +6,7 @@ export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const navItems = [
-    { name: 'Dashboard', path: '/' },
+    { name: 'Dashboard', path: '/dashboard' },
     { name: 'Analytics', path: '/analytics' },
     { name: 'Simulations', path: '/simulations' },
     { name: 'Reports', path: '/reports' },
@@ -81,9 +81,9 @@ export const Navbar: React.FC = () => {
                 <span className="text-xs text-gray-500 font-mono">SYS_OK</span>
               </div>
 
-              <button className="relative px-4 py-1.5 text-xs font-semibold tracking-wider text-cyber-cyan uppercase border border-cyber-cyan/30 rounded bg-cyber-cyan/5 hover:bg-cyber-cyan/15 hover:border-cyber-cyan transition-all duration-300 shadow-[0_0_5px_rgba(6,182,212,0.1)] hover:shadow-[0_0_12px_rgba(6,182,212,0.3)]">
+              <Link to="/dashboard" className="relative px-4 py-1.5 text-xs font-semibold tracking-wider text-cyber-cyan uppercase border border-cyber-cyan/30 rounded bg-cyber-cyan/5 hover:bg-cyber-cyan/15 hover:border-cyber-cyan transition-all duration-300 shadow-[0_0_5px_rgba(6,182,212,0.1)] hover:shadow-[0_0_12px_rgba(6,182,212,0.3)] select-none">
                 Secure Console
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -141,9 +141,9 @@ export const Navbar: React.FC = () => {
                   </span>
                   <span className="text-sm text-gray-400 font-mono">SYSTEM nominal</span>
                 </div>
-                <button className="w-full text-center px-4 py-2 text-sm font-semibold tracking-wider text-cyber-cyan uppercase border border-cyber-cyan/30 rounded bg-cyber-cyan/5 hover:bg-cyber-cyan/20 transition-all">
+                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="w-full text-center px-4 py-2 text-sm font-semibold tracking-wider text-cyber-cyan uppercase border border-cyber-cyan/30 rounded bg-cyber-cyan/5 hover:bg-cyber-cyan/20 transition-all block select-none">
                   Secure Console
-                </button>
+                </Link>
               </div>
             </div>
           </motion.div>

@@ -5,11 +5,11 @@ Handles encoding and decoding of JSON Web Tokens for authentication.
 Supports distinct Access Token (with roles) and Refresh Token scopes.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
-from jose import JWTError, jwt
 
-import uuid
+from jose import jwt
 
 from app.core.config import settings
 
@@ -19,7 +19,7 @@ def create_access_token(
 ) -> str:
     """
     Generate a short-lived access JWT.
-    
+
     Includes standard claims (sub, exp) and custom claims (role).
     """
     if expires_delta:
@@ -44,7 +44,7 @@ def create_refresh_token(
 ) -> str:
     """
     Generate a long-lived refresh JWT.
-    
+
     Contains minimum metadata (sub, exp, type) for renewal security.
     """
     if expires_delta:
@@ -66,7 +66,7 @@ def create_refresh_token(
 def decode_token(token: str) -> Dict[str, Any]:
     """
     Decode and validate a JWT.
-    
+
     Raises JWTError if token is invalid, expired, or signature verification fails.
     """
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

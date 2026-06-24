@@ -6,6 +6,7 @@ database injection, current user fetching, and role authorization.
 """
 
 from typing import List
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
@@ -26,8 +27,9 @@ async def get_current_user(
 ) -> User:
     """
     Validate the JWT access token and return the associated User.
-    
-    Raises 401 UNAUTHORIZED if the token is invalid, expired, or the user does not exist.
+
+    Raises 401 UNAUTHORIZED if the token is invalid, expired,
+    or the user does not exist.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,7 +44,7 @@ async def get_current_user(
 
         if not user_id_str or token_type != "access":
             raise credentials_exception
-            
+
         user_id = int(user_id_str)
     except (JWTError, ValueError):
         raise credentials_exception
@@ -50,7 +52,7 @@ async def get_current_user(
     user = await UserService.get_by_id(db, user_id)
     if not user:
         raise credentials_exception
-        
+
     return user
 
 
@@ -71,9 +73,7 @@ class RoleChecker:
     def __init__(self, allowed_roles: List[UserRole]) -> None:
         self.allowed_roles = allowed_roles
 
-    def __call__(
-        self, current_user: User = Depends(get_current_active_user)
-    ) -> User:
+    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
         """Verify the user's role belongs to the allowed list."""
         if current_user.role not in self.allowed_roles:
             raise HTTPException(

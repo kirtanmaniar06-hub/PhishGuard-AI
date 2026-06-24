@@ -60,7 +60,7 @@ async def login(
 ) -> TokenResponse:
     """
     Log in using username/email and password.
-    
+
     Returns access and refresh tokens. Fits OAuth2 standards.
     """
     user = await UserService.authenticate(

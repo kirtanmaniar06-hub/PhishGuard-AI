@@ -7,10 +7,11 @@ async SQLite and sets up the async HTTP test client.
 
 import asyncio
 from typing import AsyncGenerator
-import pytest
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 
 from app.api.deps import get_db
 from app.database.base import Base
@@ -53,7 +54,7 @@ async def test_engine():
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """
     Yield a database session bound to an active transaction.
-    
+
     Rolls back any database changes at the end of each test.
     """
     connection = await test_engine.connect()
@@ -77,14 +78,15 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """
     Yield an AsyncClient for FastAPI endpoint testing.
-    
+
     Overrides get_db to inject the transaction-scoped database session.
     """
+
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
         yield ac

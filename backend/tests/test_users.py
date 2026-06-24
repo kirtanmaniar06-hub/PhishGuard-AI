@@ -39,7 +39,7 @@ async def test_get_profile_authenticated(client: AsyncClient) -> None:
     headers = {"Authorization": f"Bearer {token}"}
     response = await client.get("/api/v1/users/me", headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["email"] == email
     assert data["username"] == username
@@ -79,7 +79,9 @@ async def test_list_users_denied_to_standard_user(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_users_allowed_to_admin(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_list_users_allowed_to_admin(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Test that an admin user can successfully list all users (RBAC check)."""
     # Create an admin user directly in the database session
     admin_in = UserCreate(
@@ -101,7 +103,7 @@ async def test_list_users_allowed_to_admin(client: AsyncClient, db_session: Asyn
     headers = {"Authorization": f"Bearer {token}"}
     response = await client.get("/api/v1/users/", headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) >= 1
     # Check that the admin user is in the list

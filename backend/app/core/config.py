@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # ── Database ─────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/phishguard_db"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:password@localhost:5432/phishguard_db"
+    )
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
 

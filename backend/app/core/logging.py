@@ -38,7 +38,10 @@ def setup_logging() -> None:
     logger.add(
         str(log_path),
         level=settings.LOG_LEVEL,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} — {message}",
+        format=(
+            "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+            "{name}:{function}:{line} — {message}"
+        ),
         rotation="10 MB",
         retention="30 days",
         compression="zip",

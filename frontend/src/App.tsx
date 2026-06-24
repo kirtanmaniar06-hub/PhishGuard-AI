@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Navbar } from './layouts/Navbar';
 import { Footer } from './layouts/Footer';
+import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Analytics } from './pages/Analytics';
 import { Simulations } from './pages/Simulations';
@@ -17,14 +18,57 @@ const App: React.FC = () => {
         <Navbar />
 
         {/* Main Content Area */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 w-full">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/simulations" element={<Simulations />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<Landing />} />
+            <Route
+              path="/dashboard"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Dashboard />
+                </div>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Analytics />
+                </div>
+              }
+            />
+            <Route
+              path="/simulations"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Simulations />
+                </div>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Reports />
+                </div>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Settings />
+                </div>
+              }
+            />
+            <Route
+              path="*"
+              element={
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <NotFound />
+                </div>
+              }
+            />
           </Routes>
         </main>
 

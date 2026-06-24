@@ -7,18 +7,18 @@ attaches versioned routers, defines the startup lifespan sequence
 """
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import logger, setup_logging
 from app.database.session import SessionLocal
-from app.models.user import UserRole
 from app.middleware.logging import RequestLoggingMiddleware
+from app.models.user import UserRole
 from app.routers.api import api_router
 from app.schemas.user import UserCreate
 from app.services.user_service import UserService
-
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.database.base import Base
             from app.database.session import engine
+
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("SQLite database tables initialized successfully.")

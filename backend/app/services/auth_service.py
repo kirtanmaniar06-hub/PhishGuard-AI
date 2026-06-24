@@ -6,17 +6,19 @@ Implements a secure refresh token rotation strategy to prevent reuse.
 """
 
 import datetime
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from fastapi import HTTPException, status
 from jose import JWTError
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.logging import logger
-from app.models.user import User
 from app.models.token import RefreshToken
-from app.security.jwt import create_access_token, create_refresh_token, decode_token
+from app.models.user import User
 from app.schemas.token import TokenResponse
+from app.security.jwt import (create_access_token, create_refresh_token,
+                              decode_token)
 
 
 class AuthService:
@@ -35,17 +37,17 @@ class AuthService:
         expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
-        
+
         db_refresh = RefreshToken(
             token=refresh_token_str,
             user_id=user.id,
             expires_at=expires_at,
             is_revoked=False,
         )
-        
+
         db.add(db_refresh)
         await db.commit()
-        
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token_str,
@@ -53,7 +55,9 @@ class AuthService:
         )
 
     @staticmethod
-    async def refresh_session(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
+    async def refresh_session(
+        db: AsyncSession, refresh_token_str: str
+    ) -> TokenResponse:
         """
         Validate the provided refresh token, rotate it (revoke/delete old,
         issue new pair), and return a new session.
@@ -95,14 +99,23 @@ class AuthService:
                 detail="Refresh token not found",
             )
 
+        # Validate that the token owner matches the decoded JWT's sub
+        if db_token.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token owner",
+            )
+
         if db_token.is_revoked:
             # Reuse attack detection: revoke all tokens for this user
-            logger.error(f"Revoked refresh token reuse detected for user {db_token.user_id}!")
-            await db.execute(
-                select(RefreshToken)
-                .where(RefreshToken.user_id == db_token.user_id)
+            logger.error(
+                f"Revoked refresh token reuse detected for user {db_token.user_id}!"
             )
-            # Revoke all tokens for this user
+            await db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.user_id == db_token.user_id)
+                .values(is_revoked=True)
+            )
             await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -124,9 +137,9 @@ class AuthService:
                 detail="User account is deactivated or not found",
             )
 
-        # 4. Revoke the old token (or delete it to clean up the DB)
-        # We will delete the old one to keep the DB size minimal
-        await db.delete(db_token)
+        # 4. Revoke old token by marking it as revoked to support reuse detection
+        db_token.is_revoked = True
+        db.add(db_token)
         await db.commit()
 
         # 5. Issue new session (creates new access + refresh token)

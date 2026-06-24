@@ -6,6 +6,7 @@ each incoming request, funneling reports to structured Loguru sinks.
 """
 
 import time
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -25,13 +26,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             duration = (time.perf_counter() - start_time) * 1000
-            
+
             # Formulate structured message
             log_msg = (
                 f"{client_ip} | '{method} {path}' | "
                 f"Status: {response.status_code} | Duration: {duration:.2f}ms"
             )
-            
+
             if response.status_code >= 400:
                 logger.warning(log_msg)
             else:

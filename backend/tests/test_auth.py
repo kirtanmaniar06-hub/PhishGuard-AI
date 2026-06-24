@@ -10,7 +10,6 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserRole
-from app.services.user_service import UserService
 
 
 @pytest.mark.asyncio
@@ -23,7 +22,7 @@ async def test_register_user(client: AsyncClient) -> None:
     }
     response = await client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["email"] == payload["email"]
     assert data["username"] == payload["username"]
@@ -33,7 +32,9 @@ async def test_register_user(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_register_duplicate_email(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_register_duplicate_email(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Test registration with an email that is already registered."""
     # Seed user first
     payload = {
@@ -72,7 +73,7 @@ async def test_login_success(client: AsyncClient) -> None:
     }
     response = await client.post("/api/v1/auth/login", data=login_payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "access_token" in data
     assert "refresh_token" in data
@@ -124,7 +125,7 @@ async def test_token_refresh(client: AsyncClient) -> None:
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
     assert refresh_res.status_code == 200
-    
+
     new_tokens = refresh_res.json()
     assert "access_token" in new_tokens
     assert "refresh_token" in new_tokens
@@ -161,3 +162,44 @@ async def test_logout_revocation(client: AsyncClient) -> None:
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
     assert refresh_res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_token_reuse_revokes_all(client: AsyncClient) -> None:
+    """Test that reusing a rotated refresh token revokes all user sessions."""
+    # 1. Register and login
+    register_payload = {
+        "email": "reuse@phishguard.ai",
+        "username": "reuseuser",
+        "password": "SecurePassword123!",
+    }
+    await client.post("/api/v1/auth/register", json=register_payload)
+
+    login_payload = {
+        "username": "reuseuser",
+        "password": "SecurePassword123!",
+    }
+    login_res = await client.post("/api/v1/auth/login", data=login_payload)
+    tokens1 = login_res.json()
+    rt1 = tokens1["refresh_token"]
+
+    # 2. Use rt1 to refresh (rotate) once
+    refresh_res1 = await client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": rt1}
+    )
+    assert refresh_res1.status_code == 200
+    tokens2 = refresh_res1.json()
+    rt2 = tokens2["refresh_token"]
+    assert rt2 != rt1
+
+    # 3. Reuse the old rt1. This is a reuse attack!
+    reuse_res = await client.post("/api/v1/auth/refresh", json={"refresh_token": rt1})
+    assert reuse_res.status_code == 401
+    assert "revoked" in reuse_res.json()["detail"].lower()
+
+    # 4. Attempt to use rt2 (the new valid token). It should now be revoked!
+    refresh_res2 = await client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": rt2}
+    )
+    assert refresh_res2.status_code == 401
+    assert "revoked" in refresh_res2.json()["detail"].lower()

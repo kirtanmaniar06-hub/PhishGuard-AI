@@ -6,6 +6,7 @@ All operations are executed asynchronously.
 """
 
 from typing import List, Optional
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,15 +62,13 @@ class UserService:
         return db_user
 
     @staticmethod
-    async def update(
-        db: AsyncSession, db_user: User, user_in: UserUpdate
-    ) -> User:
+    async def update(db: AsyncSession, db_user: User, user_in: UserUpdate) -> User:
         """Update an existing User profile."""
         update_data = user_in.model_dump(exclude_unset=True)
         if "password" in update_data and update_data["password"]:
             db_user.hashed_password = get_password_hash(update_data["password"])
             del update_data["password"]
-            
+
         for field, value in update_data.items():
             setattr(db_user, field, value)
 
@@ -84,7 +83,7 @@ class UserService:
     ) -> Optional[User]:
         """
         Authenticate a user by matching their username/email and password.
-        
+
         Returns the User object if successful, else None.
         """
         if "@" in username_or_email:
