@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createScan } from '../services/scanService';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -83,7 +84,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     return activeItem ? activeItem.name : 'Console';
   };
 
-  const handleStartScan = (e: React.FormEvent) => {
+  const handleStartScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanInput.trim()) return;
 
@@ -92,33 +93,40 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     setScanResult(null);
 
     const interval = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsScanning(false);
-          // Generate realistic scanning result
-          const score = Math.floor(Math.random() * 100);
-          const isPhish = score > 60;
-          setScanResult({
-            score,
-            status: isPhish ? 'CRITICAL' : score > 35 ? 'SUSPICIOUS' : 'SAFE',
-            analyzedTarget: scanInput,
-            verdict: isPhish 
-              ? 'Warning: AI models detected high probability of credential harvesting and lookalike domain tactics.' 
-              : score > 35 
-                ? 'Caution: Some anomalous elements detected, including high-urgency keywords and mismatched SPF record.'
-                : 'Safe: Low phishing risk detected. Headers, layout, and links appear valid.',
-            indicators: isPhish 
-              ? ['Mismatched Sender Domain', 'Urgency Call to Action', 'Suspicious Login Redirection Link'] 
-              : score > 35 
-                ? ['Newly Registered Domain', 'Strong Urgent Tone'] 
-                : ['Valid SPF/DKIM/DMARC', 'No Known Threat Association']
-          });
-          return 100;
-        }
-        return prev + 10;
+      setScanProgress((prev) => (prev >= 90 ? 90 : prev + 15));
+    }, 150);
+
+    try {
+      const data = await createScan({
+        target: scanInput.trim(),
+        type: scanType === 'url' ? 'URL' : 'EMAIL',
       });
-    }, 200);
+      clearInterval(interval);
+      setScanProgress(100);
+      
+      // Artificial short delay for visual completion
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanResult({
+          score: data.score,
+          status: data.status,
+          analyzedTarget: data.target,
+          verdict: data.verdict,
+          indicators: data.indicators
+        });
+      }, 300);
+    } catch (err: any) {
+      clearInterval(interval);
+      setIsScanning(false);
+      const errMsg = err?.response?.data?.detail || err?.message || 'Backend connection error';
+      setScanResult({
+        score: 0,
+        status: 'SAFE',
+        analyzedTarget: scanInput,
+        verdict: `Failed to run threat analysis: ${errMsg}`,
+        indicators: ['Connection failed. Ensure backend server is running on port 8000.']
+      });
+    }
   };
 
   const resetScan = () => {

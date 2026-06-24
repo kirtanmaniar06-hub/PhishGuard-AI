@@ -5,7 +5,7 @@ Encapsulates data persistence and heuristic analysis for URL and email scans.
 """
 
 import json
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scan import Scan
 from app.schemas.scan import ScanCreate
+from app.services.feature_extraction import FeatureExtractionPipeline
 
 
 class ScanService:
@@ -40,53 +41,68 @@ class ScanService:
     ) -> Scan:
         """
         Analyze a target and persist the scan results.
-        Runs simulated heuristics to determine the threat score.
+        Runs concrete, SOLID feature extractors to evaluate threat levels.
         """
         target = scan_in.target.strip()
-        target_lower = target.lower()
 
-        # Simulated Heuristic Engine
+        # Run URL Feature Extraction Pipeline
+        pipeline = FeatureExtractionPipeline()
+        features = pipeline.extract_features(target)
+
+        # Evaluate score based on extracted features
         score = 0
         indicators = []
 
-        # 1. Check encryption protocol
-        if not target_lower.startswith("https://"):
-            score += 15
+        # 1. Check protocol security
+        if not features["is_https"]:
+            score += 20
             indicators.append("Unencrypted connection (HTTP)")
 
-        # 2. Extract host structure
-        try:
-            parsed = urlparse(target if "://" in target else f"http://{target}")
-            host = parsed.netloc or parsed.path
-        except Exception:
-            host = target_lower
-
-        # 3. Check for high-urgency/phishing keywords
-        urgent_keywords = ["login", "signin", "auth", "verification", "update", "recovery", "password"]
-        brand_keywords = ["paypal", "bank", "netbank", "chase", "wellsfargo", "secure", "netflix", "microsoft", "google"]
-
-        matched_urgency = [kw for kw in urgent_keywords if kw in target_lower]
-        if matched_urgency:
-            score += 20
-            indicators.append(f"Urgent authentication keyword detected: '{matched_urgency[0]}'")
-
-        matched_brand = [kb for kb in brand_keywords if kb in target_lower]
-        if matched_brand:
-            score += 25
-            indicators.append(f"Financial or tech brand name matching: '{matched_brand[0]}'")
-
-        # 4. Check for suspicious Top Level Domains (TLDs)
-        suspicious_tlds = [".xyz", ".temp", ".info", ".click", ".top", ".zip", ".work", ".site"]
-        matched_tld = [tld for tld in suspicious_tlds if host.endswith(tld)]
-        if matched_tld:
-            score += 30
-            indicators.append(f"Suspicious top-level domain extension: '{matched_tld[0]}'")
-
-        # 5. Check excessive subdomain depth
-        dots_count = host.count(".")
-        if dots_count > 3:
+        # 2. Check length obfuscation
+        url_len = features["url_length"]
+        if url_len > 75:
             score += 15
-            indicators.append("Excessive domain subdirectories/subdomains")
+            indicators.append(f"Excessive URL character length ({url_len} chars)")
+
+        # 3. Check dots count
+        domain_dots = features["dots_count"]["domain"]
+        if domain_dots > 2:
+            score += 15
+            indicators.append(f"High number of dots in domain ({domain_dots})")
+
+        # 4. Check subdomain nesting
+        subdomain_cnt = features["subdomains"]["count"]
+        if subdomain_cnt > 1:
+            score += 15
+            indicators.append(f"Excessive subdomain nesting ({subdomain_cnt} levels)")
+
+        # 5. Check raw IP hostname
+        if features["is_ip_address"]:
+            score += 35
+            indicators.append("Raw IP address used as host identifier")
+
+        # 6. Check special characters / obfuscation flags
+        spec_chars = features["special_characters"]
+        if spec_chars.get("@", 0) > 0:
+            score += 30
+            indicators.append("Credential redirection char '@' detected")
+        if spec_chars.get("-", 0) > 2:
+            score += 10
+            indicators.append("Suspicious hyphen usage in domain name")
+
+        # 7. Check percent-encoded obfuscation
+        if features["encoded_characters"]["has_encoding"]:
+            score += 15
+            indicators.append("URL contains percent-encoded obfuscated characters")
+
+        # 8. Check suspicious keywords
+        kw = features["suspicious_keywords"]
+        if kw["brands"]:
+            score += 25
+            indicators.append(f"Brand spoofing indicator matching: '{kw['brands'][0]}'")
+        if kw["urgency"]:
+            score += 20
+            indicators.append(f"Urgent authentication keyword matching: '{kw['urgency'][0]}'")
 
         # Bound score between 1 and 99
         score = max(1, min(score, 99))

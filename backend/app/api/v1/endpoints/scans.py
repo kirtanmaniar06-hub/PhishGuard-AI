@@ -69,3 +69,24 @@ async def get_scan(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan
+
+
+@router.post(
+    "/features",
+    status_code=status.HTTP_200_OK,
+    summary="Extract security features from a URL",
+)
+async def extract_url_features(
+    scan_in: ScanCreate,
+) -> dict:
+    """
+    Extract heuristic features from a target URL on-demand.
+
+    Returns detailed structural signals such as length, subdomain depth,
+    special characters, HTTPS status, raw IP indicator, percent-encoding details,
+    and matching threat keywords.
+    """
+    from app.services.feature_extraction import FeatureExtractionPipeline
+    pipeline = FeatureExtractionPipeline()
+    return pipeline.extract_features(scan_in.target)
+
