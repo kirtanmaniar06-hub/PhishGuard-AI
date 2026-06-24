@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.database.base import Base
             from app.database.session import engine
+            import app.models.scan  # noqa: F401 — register Scan table in metadata
 
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { UrlScanner } from '../components/UrlScanner';
 import { motion } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -503,6 +504,12 @@ export const Dashboard: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {/* ────────────────── SECTION 5: URL SCANNER MODULE ────────────────── */}
+      <div className="bg-cyber-dark-card/30 border border-cyber-cyan/10 rounded-lg p-6 relative">
+        <div className="absolute top-0 right-0 p-3 font-mono text-[9px] text-gray-500">URL_SCANNER_ENGINE</div>
+        <UrlScanner />
+      </div>
 
     </motion.div>
   );
