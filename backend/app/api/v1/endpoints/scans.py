@@ -90,3 +90,22 @@ async def extract_url_features(
     pipeline = FeatureExtractionPipeline()
     return pipeline.extract_features(scan_in.target)
 
+
+@router.post(
+    "/whois",
+    status_code=status.HTTP_200_OK,
+    summary="Perform normalized WHOIS query on a domain",
+)
+async def get_whois_info(
+    scan_in: ScanCreate,
+) -> dict:
+    """
+    Perform a WHOIS query on the target URL's domain.
+
+    Returns registrar, domain age in days, creation and expiration date,
+    owner if publicly available, and country code. Utilizes 24h caching.
+    """
+    from app.services.whois_service import WhoisService
+    return WhoisService.get_whois_data(scan_in.target)
+
+

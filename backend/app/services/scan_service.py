@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.scan import Scan
 from app.schemas.scan import ScanCreate
 from app.services.feature_extraction import FeatureExtractionPipeline
+from app.services.whois_service import WhoisService
 
 
 class ScanService:
@@ -41,15 +42,18 @@ class ScanService:
     ) -> Scan:
         """
         Analyze a target and persist the scan results.
-        Runs concrete, SOLID feature extractors to evaluate threat levels.
+        Runs concrete, SOLID feature extractors and WHOIS analysis to evaluate threat levels.
         """
         target = scan_in.target.strip()
 
-        # Run URL Feature Extraction Pipeline
+        # 1. Run URL Feature Extraction Pipeline
         pipeline = FeatureExtractionPipeline()
         features = pipeline.extract_features(target)
 
-        # Evaluate score based on extracted features
+        # 2. Run WHOIS registry check
+        whois_data = WhoisService.get_whois_data(target)
+
+        # Evaluate score based on extracted features and WHOIS indicators
         score = 0
         indicators = []
 
@@ -103,6 +107,16 @@ class ScanService:
         if kw["urgency"]:
             score += 20
             indicators.append(f"Urgent authentication keyword matching: '{kw['urgency'][0]}'")
+
+        # 9. Evaluate domain registration age from WHOIS
+        domain_age = whois_data.get("domain_age_days")
+        if domain_age is not None:
+            if domain_age < 90:
+                score += 25
+                indicators.append(f"Newly registered domain (Age: {domain_age} days)")
+            elif domain_age < 365:
+                score += 10
+                indicators.append(f"Recent domain registration (Age: {domain_age} days)")
 
         # Bound score between 1 and 99
         score = max(1, min(score, 99))
