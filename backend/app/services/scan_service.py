@@ -15,6 +15,7 @@ from app.models.scan import Scan
 from app.schemas.scan import ScanCreate
 from app.services.feature_extraction import FeatureExtractionPipeline
 from app.services.whois_service import WhoisService
+from app.services.ssl_service import SslService
 
 
 class ScanService:
@@ -42,7 +43,7 @@ class ScanService:
     ) -> Scan:
         """
         Analyze a target and persist the scan results.
-        Runs concrete, SOLID feature extractors and WHOIS analysis to evaluate threat levels.
+        Runs concrete, SOLID feature extractors, WHOIS analysis, and SSL evaluation.
         """
         target = scan_in.target.strip()
 
@@ -53,7 +54,12 @@ class ScanService:
         # 2. Run WHOIS registry check
         whois_data = WhoisService.get_whois_data(target)
 
-        # Evaluate score based on extracted features and WHOIS indicators
+        # 3. Run SSL Certificate analysis (if target is HTTPS)
+        ssl_data = None
+        if features["is_https"]:
+            ssl_data = SslService.analyze_ssl(target)
+
+        # Evaluate score based on features, WHOIS registry, and SSL attributes
         score = 0
         indicators = []
 
@@ -117,6 +123,22 @@ class ScanService:
             elif domain_age < 365:
                 score += 10
                 indicators.append(f"Recent domain registration (Age: {domain_age} days)")
+
+        # 10. Evaluate SSL Certificate Trust
+        if ssl_data:
+            if not ssl_data.get("valid"):
+                status_msg = ssl_data.get("status") or "verification failed"
+                if "CONNECTION_FAILURE" in status_msg:
+                    score += 15
+                    indicators.append("Secure connection failed (TLS handshake timeout or port closed)")
+                else:
+                    score += 30
+                    indicators.append(f"Untrusted SSL/TLS certificate ({status_msg})")
+            else:
+                trust_score = ssl_data.get("trust_score", 100)
+                if trust_score < 100:
+                    score += 15
+                    indicators.append(f"Weak SSL/TLS certificate profile (Trust Score: {trust_score})")
 
         # Bound score between 1 and 99
         score = max(1, min(score, 99))

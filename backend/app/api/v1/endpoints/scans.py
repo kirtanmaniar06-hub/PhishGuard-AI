@@ -109,3 +109,22 @@ async def get_whois_info(
     return WhoisService.get_whois_data(scan_in.target)
 
 
+@router.post(
+    "/ssl",
+    status_code=status.HTTP_200_OK,
+    summary="Analyze SSL certificate for a domain",
+)
+async def analyze_ssl_certificate(
+    scan_in: ScanCreate,
+) -> dict:
+    """
+    Query and parse the SSL certificate of the target domain.
+
+    Returns the issuer, validation status, expiration date, encryption algorithm,
+    trust chain, and calculated trust score. Handles invalid or self-signed certs.
+    """
+    from app.services.ssl_service import SslService
+    return SslService.analyze_ssl(scan_in.target)
+
+
+
