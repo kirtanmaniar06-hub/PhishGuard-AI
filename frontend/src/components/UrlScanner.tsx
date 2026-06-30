@@ -16,6 +16,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createScan, fetchScans, type ScanResult } from '../services/scanService';
 import { scanTarget } from '../services/threatIntelService';
 import { type ThreatIntelReport } from '../types/threatIntel';
+import { predictUrl } from '../services/mlService';
+import type { MLPredictionResponse } from '../types/ml';
 
 /* ── Helpers ──────────────────────────────────────────── */
 const URL_REGEX =
@@ -205,6 +207,106 @@ const ScanResultCard: React.FC<{ result: ScanResult }> = ({ result }) => {
                 transition={{ duration: 0.7, ease: 'easeOut' }}
               />
             </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/** ML prediction skeleton loading states */
+const MlSkeleton: React.FC = () => (
+  <div className="rounded-lg border border-cyan-500/10 bg-cyber-dark-card/20 p-6 space-y-4 animate-pulse">
+    <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div className="space-y-1">
+        <div className="h-3 w-40 bg-gray-800 rounded" />
+        <div className="h-2 w-28 bg-gray-900 rounded" />
+      </div>
+      <div className="h-5 w-20 bg-gray-800 rounded" />
+    </div>
+    <div className="flex gap-6 items-center">
+      <div className="w-16 h-16 rounded-full bg-gray-800" />
+      <div className="flex-1 space-y-2">
+        <div className="h-2 w-full bg-gray-800 rounded" />
+        <div className="h-2 w-3/4 bg-gray-800 rounded" />
+      </div>
+    </div>
+  </div>
+);
+
+/** Random Forest ML predictions details card */
+const MlPredictionCard: React.FC<{ ml: MLPredictionResponse }> = ({ ml }) => {
+  const isPhishing = ml.prediction === 'phishing';
+  const confidencePercent = Math.round(ml.confidence * 100);
+
+  let riskBadgeColor = 'bg-cyber-green/10 border-cyber-green/40 text-cyber-green';
+  let statusText = 'SAFE';
+  if (isPhishing) {
+    riskBadgeColor = 'bg-cyber-red/10 border-cyber-red/40 text-cyber-red animate-pulse';
+    statusText = 'CRITICAL PHISHING';
+  } else if (confidencePercent < 70) {
+    riskBadgeColor = 'bg-amber-500/10 border-amber-500/40 text-amber-400';
+    statusText = 'SUSPICIOUS';
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="rounded-lg border border-cyber-cyan/15 bg-cyber-dark-card/30 p-6 space-y-6"
+    >
+      <div className="flex justify-between items-center border-b border-gray-800/80 pb-3">
+        <div>
+          <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+            Random Forest Phishing Predictor
+          </h4>
+          <p className="font-mono text-[9px] text-gray-500 mt-0.5">
+            Machine Learning analysis · Real-time inference
+          </p>
+        </div>
+        <span className={`px-2.5 py-1 rounded text-[9px] font-mono font-bold border tracking-widest ${riskBadgeColor}`}>
+          {statusText}
+        </span>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-6 items-center">
+        {/* Confidence Gauge */}
+        <div className="flex flex-col items-center shrink-0">
+          <div className="relative w-20 h-20 flex items-center justify-center rounded-full bg-cyber-black border border-gray-800">
+            <span className={`text-xl font-extrabold font-mono ${isPhishing ? 'text-cyber-red' : 'text-cyber-green'}`}>
+              {confidencePercent}%
+            </span>
+          </div>
+          <span className="mt-2 text-[9px] font-mono text-gray-400 uppercase tracking-widest">Confidence</span>
+        </div>
+
+        {/* Feature Importance List */}
+        <div className="flex-1 w-full space-y-3">
+          <p className="font-mono text-[9px] text-gray-500 uppercase tracking-wider">
+            Important Prediction Features
+          </p>
+          <div className="space-y-2">
+            {ml.important_features.map((feat) => {
+              const formattedName = feat.name.replace(/_/g, ' ');
+              const barWidth = Math.round(feat.importance * 100);
+              return (
+                <div key={feat.name} className="space-y-1">
+                  <div className="flex justify-between font-mono text-[9px] text-gray-300">
+                    <span className="capitalize">{formattedName}</span>
+                    <span className="text-gray-550">
+                      val: {feat.value} (imp: {barWidth}%)
+                    </span>
+                  </div>
+                  <div className="h-1 w-full bg-gray-900 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${isPhishing ? 'bg-cyber-red' : 'bg-cyber-cyan'}`}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -486,6 +588,11 @@ export const UrlScanner: React.FC = () => {
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelError, setIntelError] = useState<string | null>(null);
 
+  // Machine Learning state
+  const [mlResult, setMlResult] = useState<MLPredictionResponse | null>(null);
+  const [mlLoading, setMlLoading] = useState(false);
+  const [mlError, setMlError] = useState<string | null>(null);
+
   /* Load history on mount */
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -508,6 +615,8 @@ export const UrlScanner: React.FC = () => {
     setSelectedHistory(null);
     setIntelResult(null);
     setIntelError(null);
+    setMlResult(null);
+    setMlError(null);
 
     // Client-side validation
     const err = validateUrl(url);
@@ -519,6 +628,7 @@ export const UrlScanner: React.FC = () => {
 
     setIsLoading(true);
     setIntelLoading(true);
+    setMlLoading(true);
 
     try {
       const data = await createScan({ target: url.trim(), type: 'URL' });
@@ -547,6 +657,19 @@ export const UrlScanner: React.FC = () => {
       setIntelError(msg);
     } finally {
       setIntelLoading(false);
+    }
+
+    try {
+      const mlData = await predictUrl({ url: url.trim() });
+      setMlResult(mlData);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.detail ||
+        error?.message ||
+        'Failed to query machine learning classifier.';
+      setMlError(msg);
+    } finally {
+      setMlLoading(false);
     }
   };
 
@@ -699,6 +822,25 @@ export const UrlScanner: React.FC = () => {
             <div className="space-y-4">
               <ScanResultCard result={displayedResult} />
               
+              {/* Dynamic Machine Learning Prediction Panel */}
+              {mlLoading && <MlSkeleton />}
+              
+              {mlError && (
+                <div className="bg-cyber-red/5 border border-cyber-red/20 rounded-lg p-4 flex gap-3">
+                  <svg className="w-5 h-5 text-cyber-red shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="font-mono text-xs text-cyber-red font-bold">ML_INFERENCE_FAILURE</p>
+                    <p className="font-mono text-[9px] text-red-400/80 mt-0.5">{mlError}</p>
+                  </div>
+                </div>
+              )}
+
+              {mlResult && !mlLoading && (
+                <MlPredictionCard ml={mlResult} />
+              )}
+              
               {/* Dynamic Threat Intelligence Sub-state Panel */}
               {intelLoading && <ThreatIntelSkeleton />}
               
@@ -769,11 +911,15 @@ export const UrlScanner: React.FC = () => {
                     setSelectedHistory(null);
                     setIntelResult(null);
                     setIntelError(null);
+                    setMlResult(null);
+                    setMlError(null);
                   } else {
                     setSelectedHistory(scan);
                     setResult(null);
                     setIntelResult(null);
                     setIntelError(null);
+                    setMlResult(null);
+                    setMlError(null);
                     
                     // Fetch threat intel on-demand for selected history item
                     setIntelLoading(true);
@@ -788,6 +934,21 @@ export const UrlScanner: React.FC = () => {
                       setIntelError(msg);
                     } finally {
                       setIntelLoading(false);
+                    }
+
+                    // Fetch ML prediction on-demand for selected history item
+                    setMlLoading(true);
+                    try {
+                      const mlData = await predictUrl({ url: scan.target });
+                      setMlResult(mlData);
+                    } catch (error: any) {
+                      const msg =
+                        error?.response?.data?.detail ||
+                        error?.message ||
+                        'Failed to query machine learning classifier.';
+                      setMlError(msg);
+                    } finally {
+                      setMlLoading(false);
                     }
                   }
                 }}

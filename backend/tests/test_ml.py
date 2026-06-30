@@ -68,6 +68,52 @@ class TestMLModule:
         assert metrics["total_samples"] > 0
         assert metrics["accuracy"] > 0.8  # Trained classifier fits data perfectly
 
+    def test_model_loading_and_saving(self, tmp_path) -> None:
+        """Verify model serialization and deserialization works correctly."""
+        import os
+        model_file = os.path.join(tmp_path, "test_model.pkl")
+        clf = PhishingClassifier(model_path=model_file)
+        
+        # Load nonexistent model should return False
+        assert clf.load_model() is False
+        
+        # Train and save
+        X = [[1.0] * 15, [0.0] * 15]
+        y = [1, 0]
+        clf.train(X, y)
+        clf.save_model()
+        assert os.path.exists(model_file)
+        
+        # Load again
+        clf2 = PhishingClassifier(model_path=model_file)
+        assert clf2.load_model() is True
+        assert clf2.model is not None
+
+    def test_invalid_urls_features(self) -> None:
+        """Verify feature extractor handles weird or malformed URLs gracefully."""
+        extractor = MLFeatureExtractor()
+        # Empty path, odd protocols, missing parts
+        for bad_url in ["", "http://", "gopher://bad", "a.b", "localhost"]:
+            feat_dict = extractor.extract_numerical_features(bad_url)
+            assert isinstance(feat_dict, dict)
+            assert len(feat_dict) == 15
+            vector = extractor.to_vector(feat_dict)
+            assert len(vector) == 15
+
+    def test_confidence_score_ranges(self) -> None:
+        """Ensure predicted confidence score is strictly bounded between 0.5 and 1.0."""
+        from app.ml.train import DEFAULT_TRAINING_DATA
+        classifier = PhishingClassifier()
+        classifier.load_model()
+        
+        for url, _ in DEFAULT_TRAINING_DATA[:10]:
+            res = classifier.predict(url)
+            assert 0.5 <= res["confidence"] <= 1.0
+            assert 0.0 <= res["probability"]["safe"] <= 1.0
+            assert 0.0 <= res["probability"]["phishing"] <= 1.0
+            assert abs(res["probability"]["safe"] + res["probability"]["phishing"] - 1.0) < 1e-6
+
+
 
 class TestMLEndpoints:
     """

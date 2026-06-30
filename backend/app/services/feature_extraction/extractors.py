@@ -7,8 +7,13 @@ a specific heuristic signal or structural property of a URL.
 
 import re
 from ipaddress import ip_address
-from urllib.parse import urlparse
+from urllib.parse import urlparse as _raw_urlparse
+from functools import lru_cache
 from typing import Dict, List, Any
+
+@lru_cache(maxsize=1024)
+def urlparse(url: str):
+    return _raw_urlparse(url)
 
 from app.services.feature_extraction.base import BaseFeatureExtractor
 

@@ -57,10 +57,10 @@ class DecisionTree:
         p_phish = sum(1 for label in y if label == 1) / m
         return 1.0 - (p_safe ** 2 + p_phish ** 2)
 
-    def _best_split(self, X: List[List[float]], y: List[int], max_features: int = None) -> Tuple[int, float, List[int], List[int], List[int], List[int]]:
+    def _best_split(self, X: List[List[float]], y: List[int], max_features: int = None) -> Tuple[int, float, List[int], List[int]]:
         m, n = len(X), len(X[0])
         if m <= self.min_samples_split:
-            return -1, 0.0, [], [], [], []
+            return -1, 0.0, [], []
 
         best_gini = 999.0
         best_idx = -1
