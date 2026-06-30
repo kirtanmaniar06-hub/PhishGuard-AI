@@ -12,10 +12,11 @@ import { NotFound } from './pages/NotFound';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
 import { EmailScanner } from './components/EmailScanner';
+import { QrScanner } from './components/QrScanner';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const dashboardRoutes = ['/dashboard', '/analytics', '/simulations', '/reports', '/settings', '/email-scanner'];
+  const dashboardRoutes = ['/dashboard', '/analytics', '/simulations', '/reports', '/settings', '/email-scanner', '/qr-scanner'];
   const isDashboardRoute = dashboardRoutes.some(path => location.pathname.startsWith(path));
 
   if (isDashboardRoute) {
@@ -24,6 +25,7 @@ const AppContent: React.FC = () => {
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/email-scanner" element={<EmailScanner />} />
+          <Route path="/qr-scanner" element={<QrScanner />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/simulations" element={<Simulations />} />
           <Route path="/reports" element={<Reports />} />

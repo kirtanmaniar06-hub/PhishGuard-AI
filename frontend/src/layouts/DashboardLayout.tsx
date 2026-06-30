@@ -68,6 +68,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       ),
     },
     {
+      name: 'QR Scanner',
+      path: '/qr-scanner',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m0 11v2m0-6h.01M12 2a10 10 0 100 20 10 10 0 000-20zM6 6h4v4H6V6zm0 8h4v4H6v-4zm8-8h4v4h-4V6z" />
+        </svg>
+      ),
+    },
+    {
       name: 'Incident Reports',
       path: '/reports',
       icon: (
