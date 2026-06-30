@@ -60,6 +60,17 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "DEBUG"
     LOG_FILE: str = "logs/phishguard.log"
 
+    # ── Threat Intelligence API Keys ─────────────────────
+    VIRUSTOTAL_API_KEY: str = ""
+    URLSCAN_API_KEY: str = ""
+    GOOGLE_SAFE_BROWSING_API_KEY: str = ""
+    ABUSEIPDB_API_KEY: str = ""
+
+    # ── Threat Intel Rate Limiting ───────────────────────
+    # Max requests per minute per source per worker
+    THREAT_INTEL_RATE_LIMIT_PER_MINUTE: int = 10
+    THREAT_INTEL_TIMEOUT_SECONDS: int = 8
+
 
 # Singleton settings instance — import this everywhere
 settings = Settings()

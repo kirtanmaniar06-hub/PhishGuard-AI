@@ -8,11 +8,14 @@
  *  - Threat score + risk level result card
  *  - Error boundary display
  *  - History sidebar listing previous scans
+ *  - Live Threat Intelligence API integration (VirusTotal, URLScan, GSB, AbuseIPDB)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createScan, fetchScans, type ScanResult } from '../services/scanService';
+import { scanTarget } from '../services/threatIntelService';
+import { type ThreatIntelReport } from '../types/threatIntel';
 
 /* ── Helpers ──────────────────────────────────────────── */
 const URL_REGEX =
@@ -90,6 +93,32 @@ const ScanningRadar: React.FC = () => (
   </div>
 );
 
+/** Circular skeleton shimmer for loading threat intel */
+const ThreatIntelSkeleton: React.FC = () => (
+  <div className="rounded-lg border border-cyan-500/10 bg-cyber-dark-card/20 p-6 space-y-5 animate-pulse">
+    <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div className="space-y-1.5">
+        <div className="h-2.5 w-32 bg-gray-800 rounded" />
+        <div className="h-2 w-48 bg-gray-900 rounded" />
+      </div>
+      <div className="h-5 w-16 bg-gray-800 rounded-full" />
+    </div>
+    <div className="flex gap-6 items-center">
+      <div className="w-20 h-20 rounded-full bg-gray-800/60" />
+      <div className="flex-1 space-y-3">
+        <div className="h-2 w-full bg-gray-800 rounded" />
+        <div className="h-2 w-5/6 bg-gray-800 rounded" />
+        <div className="h-2 w-4/6 bg-gray-800 rounded" />
+      </div>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-16 bg-gray-800/40 rounded border border-gray-900" />
+      ))}
+    </div>
+  </div>
+);
+
 /** Result card shown after a successful scan */
 const ScanResultCard: React.FC<{ result: ScanResult }> = ({ result }) => {
   const cfg = statusConfig[result.status] ?? statusConfig.SAFE;
@@ -139,7 +168,7 @@ const ScanResultCard: React.FC<{ result: ScanResult }> = ({ result }) => {
             <span className={`text-2xl font-extrabold font-mono ${cfg.color}`}>{result.score}</span>
             <span className="text-[9px] font-mono text-gray-500">/ 100</span>
           </div>
-          <span className="mt-2 text-[9px] font-mono text-gray-400 uppercase tracking-widest">Threat Score</span>
+          <span className="mt-2 text-[9px] font-mono text-gray-400 uppercase tracking-widest">Heuristic Score</span>
         </div>
 
         {/* Verdict + indicators */}
@@ -165,7 +194,7 @@ const ScanResultCard: React.FC<{ result: ScanResult }> = ({ result }) => {
           {/* Score bar */}
           <div>
             <div className="flex justify-between font-mono text-[9px] text-gray-500 mb-1">
-              <span>Threat intensity</span>
+              <span>Heuristic intensity</span>
               <span>{result.score}%</span>
             </div>
             <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
@@ -178,6 +207,236 @@ const ScanResultCard: React.FC<{ result: ScanResult }> = ({ result }) => {
             </div>
           </div>
         </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/** Deep Threat Intelligence details panel */
+const ThreatIntelDetailsCard: React.FC<{ intel: ThreatIntelReport }> = ({ intel }) => {
+  const score = Math.round(intel.max_reputation_score);
+  
+  // Calculate status configurations dynamically based on score
+  let statusKey: 'SAFE' | 'SUSPICIOUS' | 'CRITICAL' = 'SAFE';
+  if (score >= 65 || intel.summary_verdict === 'malicious') {
+    statusKey = 'CRITICAL';
+  } else if (score >= 20 || intel.summary_verdict === 'suspicious') {
+    statusKey = 'SUSPICIOUS';
+  }
+  
+  const cfg = statusConfig[statusKey];
+  const strokeDash = 283;
+  const offset = strokeDash - (strokeDash * score) / 100;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="rounded-lg border border-cyber-cyan/15 bg-cyber-dark-card/30 p-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center border-b border-gray-800/80 pb-3">
+        <div>
+          <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+            Threat Intelligence Telemetry
+          </h4>
+          <p className="font-mono text-[9px] text-gray-500 mt-0.5">
+            Real-time querying · VT, URLScan, Safe Browsing, AbuseIPDB
+          </p>
+        </div>
+        <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border tracking-widest ${cfg.badge}`}>
+          {intel.summary_verdict}
+        </span>
+      </div>
+
+      {/* Main Gauges */}
+      <div className="flex flex-col sm:flex-row gap-6 items-center">
+        <div className="flex flex-col items-center shrink-0">
+          <svg width="84" height="84" className="-rotate-90">
+            <circle cx="42" cy="42" r="33" stroke="rgba(255,255,255,0.03)" strokeWidth="6" fill="none" />
+            <motion.circle
+              cx="42"
+              cy="42"
+              r="33"
+              stroke={statusKey === 'CRITICAL' ? '#ef4444' : statusKey === 'SUSPICIOUS' ? '#f59e0b' : '#10b981'}
+              strokeWidth="6"
+              fill="none"
+              strokeDasharray={strokeDash}
+              initial={{ strokeDashoffset: strokeDash }}
+              animate={{ strokeDashoffset: offset }}
+              transition={{ duration: 0.8 }}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="-mt-15 flex flex-col items-center">
+            <span className={`text-xl font-bold font-mono ${cfg.color}`}>{score}</span>
+            <span className="text-[8px] font-mono text-gray-600">/ 100</span>
+          </div>
+          <span className="mt-2 text-[8px] font-mono text-gray-500 uppercase tracking-widest">Max Threat score</span>
+        </div>
+
+        <div className="flex-1 space-y-3 font-mono text-[10px] w-full">
+          <div className="flex justify-between border-b border-gray-800/40 pb-1.5">
+            <span className="text-gray-500">Scan Target:</span>
+            <span className="text-white truncate max-w-[200px]" title={intel.target}>{intel.target}</span>
+          </div>
+          <div className="flex justify-between border-b border-gray-800/40 pb-1.5">
+            <span className="text-gray-500">Target Vector:</span>
+            <span className="text-cyber-cyan uppercase">{intel.target_type}</span>
+          </div>
+          <div className="flex justify-between border-b border-gray-800/40 pb-1.5">
+            <span className="text-gray-500">Risk Profile:</span>
+            <span className={`font-bold ${cfg.color}`}>{statusKey} RISK</span>
+          </div>
+          <div className="flex justify-between border-b border-gray-800/40 pb-1.5">
+            <span className="text-gray-500">Aggregated Verdict:</span>
+            <span className="text-white capitalize">{intel.summary_verdict}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Services Breakdowns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        
+        {/* VirusTotal Widget */}
+        <div className="p-3.5 rounded bg-cyber-black/35 border border-gray-800/60 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-bold text-white font-mono">VirusTotal v3</span>
+              {intel.virustotal ? (
+                <span className={`text-[8px] px-1 py-0.2 rounded border font-mono uppercase ${
+                  intel.virustotal.verdict === 'malicious' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                  intel.virustotal.verdict === 'suspicious' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-green-500/10 text-green-400 border-green-500/30'
+                }`}>
+                  {intel.virustotal.verdict}
+                </span>
+              ) : (
+                <span className="text-[8px] text-gray-600 font-mono">UNAVAILABLE</span>
+              )}
+            </div>
+            {intel.virustotal ? (
+              <div className="space-y-1 text-[9px] font-mono text-gray-400">
+                <p>Reputation Score: <strong className="text-white">{intel.virustotal.reputation_score}%</strong></p>
+                <p>Detections: <span className="text-red-400">{intel.virustotal.malicious_count}</span> / {intel.virustotal.total_engines} engines</p>
+                <p>Clean / Undetected: {intel.virustotal.harmless_count + intel.virustotal.undetected_count}</p>
+              </div>
+            ) : (
+              <p className="text-[9px] font-mono text-gray-500">No report available or engine key disabled.</p>
+            )}
+          </div>
+          {intel.virustotal?.permalink && (
+            <a
+              href={intel.virustotal.permalink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[9px] font-mono text-cyber-cyan hover:underline mt-3 inline-block self-start cursor-pointer"
+            >
+              View VT Analysis ↗
+            </a>
+          )}
+        </div>
+
+        {/* URLScan Widget */}
+        <div className="p-3.5 rounded bg-cyber-black/35 border border-gray-800/60 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-bold text-white font-mono">urlscan.io API</span>
+              {intel.urlscan ? (
+                <span className={`text-[8px] px-1 py-0.2 rounded border font-mono uppercase ${
+                  intel.urlscan.verdict === 'malicious' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                  intel.urlscan.verdict === 'suspicious' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-green-500/10 text-green-400 border-green-500/30'
+                }`}>
+                  {intel.urlscan.verdict}
+                </span>
+              ) : (
+                <span className="text-[8px] text-gray-600 font-mono">UNAVAILABLE</span>
+              )}
+            </div>
+            {intel.urlscan ? (
+              <div className="space-y-1 text-[9px] font-mono text-gray-400">
+                <p>Risk Score Index: <strong className="text-white">{intel.urlscan.score}/100</strong></p>
+                <p>Server Hosting: {intel.urlscan.server || 'Unknown'}</p>
+                <p>Host Region: {intel.urlscan.country || 'Unknown'} ({intel.urlscan.ip_address || 'No IP'})</p>
+              </div>
+            ) : (
+              <p className="text-[9px] font-mono text-gray-500">No report available or engine key disabled.</p>
+            )}
+          </div>
+          {intel.urlscan?.scan_page_url && (
+            <a
+              href={intel.urlscan.scan_page_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[9px] font-mono text-cyber-cyan hover:underline mt-3 inline-block self-start cursor-pointer"
+            >
+              View URLScan Page ↗
+            </a>
+          )}
+        </div>
+
+        {/* Google Safe Browsing Widget */}
+        <div className="p-3.5 rounded bg-cyber-black/35 border border-gray-800/60 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-bold text-white font-mono">Google Safe Browsing</span>
+              {intel.safebrowsing ? (
+                <span className={`text-[8px] px-1 py-0.2 rounded border font-mono uppercase ${
+                  intel.safebrowsing.is_flagged ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-green-500/10 text-green-400 border-green-500/30'
+                }`}>
+                  {intel.safebrowsing.is_flagged ? 'FLAGGED' : 'CLEAN'}
+                </span>
+              ) : (
+                <span className="text-[8px] text-gray-600 font-mono">UNAVAILABLE</span>
+              )}
+            </div>
+            {intel.safebrowsing ? (
+              <div className="space-y-1 text-[9px] font-mono text-gray-400">
+                <p>Listed Flagged: <strong className={intel.safebrowsing.is_flagged ? 'text-cyber-red' : 'text-cyber-green'}>
+                  {intel.safebrowsing.is_flagged ? 'YES' : 'NO'}
+                </strong></p>
+                {intel.safebrowsing.threat_types.length > 0 && (
+                  <p className="text-red-300">Matches: {intel.safebrowsing.threat_types.join(', ')}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[9px] font-mono text-gray-500">No report available or engine key disabled.</p>
+            )}
+          </div>
+        </div>
+
+        {/* AbuseIPDB Widget */}
+        <div className="p-3.5 rounded bg-cyber-black/35 border border-gray-800/60 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-bold text-white font-mono">AbuseIPDB IP Intel</span>
+              {intel.abuseipdb ? (
+                <span className={`text-[8px] px-1 py-0.2 rounded border font-mono uppercase ${
+                  intel.abuseipdb.verdict === 'malicious' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                  intel.abuseipdb.verdict === 'suspicious' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-green-500/10 text-green-400 border-green-500/30'
+                }`}>
+                  {intel.abuseipdb.verdict}
+                </span>
+              ) : (
+                <span className="text-[8px] text-gray-600 font-mono">UNAVAILABLE</span>
+              )}
+            </div>
+            {intel.abuseipdb ? (
+              <div className="space-y-1 text-[9px] font-mono text-gray-400">
+                <p>Abuse Confidence: <strong className="text-white">{intel.abuseipdb.abuse_confidence_score}%</strong></p>
+                <p>Total Abuse Reports: <span className="text-cyber-red font-bold">{intel.abuseipdb.total_reports}</span> reports</p>
+                <p className="truncate">ISP: {intel.abuseipdb.isp || 'Unknown'}</p>
+                <p className="truncate">Resolved IP: {intel.abuseipdb.ip_address || 'Failed'}</p>
+              </div>
+            ) : (
+              <p className="text-[9px] font-mono text-gray-500">No report available or engine key disabled.</p>
+            )}
+          </div>
+        </div>
+
       </div>
     </motion.div>
   );
@@ -222,6 +481,11 @@ export const UrlScanner: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<ScanResult | null>(null);
 
+  // Threat Intelligence state
+  const [intelResult, setIntelResult] = useState<ThreatIntelReport | null>(null);
+  const [intelLoading, setIntelLoading] = useState(false);
+  const [intelError, setIntelError] = useState<string | null>(null);
+
   /* Load history on mount */
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -242,6 +506,8 @@ export const UrlScanner: React.FC = () => {
     setApiError(null);
     setResult(null);
     setSelectedHistory(null);
+    setIntelResult(null);
+    setIntelError(null);
 
     // Client-side validation
     const err = validateUrl(url);
@@ -252,6 +518,8 @@ export const UrlScanner: React.FC = () => {
     setValidationError(null);
 
     setIsLoading(true);
+    setIntelLoading(true);
+
     try {
       const data = await createScan({ target: url.trim(), type: 'URL' });
       setResult(data);
@@ -266,6 +534,19 @@ export const UrlScanner: React.FC = () => {
       setApiError(msg);
     } finally {
       setIsLoading(false);
+    }
+
+    try {
+      const intelData = await scanTarget({ target: url.trim() });
+      setIntelResult(intelData);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.detail ||
+        error?.message ||
+        'Failed to query external threat intelligence.';
+      setIntelError(msg);
+    } finally {
+      setIntelLoading(false);
     }
   };
 
@@ -405,7 +686,7 @@ export const UrlScanner: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <div>
-                <p className="font-mono text-xs text-cyber-red font-bold">BACKEND_CONNECTION_FAILURE</p>
+                <p className="font-mono text-xs text-cyber-red font-bold">HEURISTIC_SCAN_FAILURE</p>
                 <p className="font-mono text-[10px] text-red-400/80 mt-0.5">{apiError}</p>
               </div>
             </motion.div>
@@ -415,7 +696,28 @@ export const UrlScanner: React.FC = () => {
         {/* Scan result / selected history */}
         <AnimatePresence>
           {displayedResult && !isLoading && (
-            <ScanResultCard result={displayedResult} />
+            <div className="space-y-4">
+              <ScanResultCard result={displayedResult} />
+              
+              {/* Dynamic Threat Intelligence Sub-state Panel */}
+              {intelLoading && <ThreatIntelSkeleton />}
+              
+              {intelError && (
+                <div className="bg-cyber-red/5 border border-cyber-red/20 rounded-lg p-4 flex gap-3">
+                  <svg className="w-5 h-5 text-cyber-red shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="font-mono text-xs text-cyber-red font-bold">THREAT_INTEL_LOOKUP_FAILURE</p>
+                    <p className="font-mono text-[9px] text-red-400/80 mt-0.5">{intelError}</p>
+                  </div>
+                </div>
+              )}
+
+              {intelResult && !intelLoading && (
+                <ThreatIntelDetailsCard intel={intelResult} />
+              )}
+            </div>
           )}
         </AnimatePresence>
 
@@ -462,9 +764,32 @@ export const UrlScanner: React.FC = () => {
                 key={scan.id}
                 scan={scan}
                 active={selectedHistory?.id === scan.id}
-                onClick={() => {
-                  setSelectedHistory(scan.id === selectedHistory?.id ? null : scan);
-                  setResult(null);
+                onClick={async () => {
+                  if (scan.id === selectedHistory?.id) {
+                    setSelectedHistory(null);
+                    setIntelResult(null);
+                    setIntelError(null);
+                  } else {
+                    setSelectedHistory(scan);
+                    setResult(null);
+                    setIntelResult(null);
+                    setIntelError(null);
+                    
+                    // Fetch threat intel on-demand for selected history item
+                    setIntelLoading(true);
+                    try {
+                      const intelData = await scanTarget({ target: scan.target });
+                      setIntelResult(intelData);
+                    } catch (error: any) {
+                      const msg =
+                        error?.response?.data?.detail ||
+                        error?.message ||
+                        'Failed to query external threat intelligence.';
+                      setIntelError(msg);
+                    } finally {
+                      setIntelLoading(false);
+                    }
+                  }
                 }}
               />
             ))
