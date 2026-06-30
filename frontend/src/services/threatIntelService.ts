@@ -6,7 +6,7 @@
  */
 
 import { apiClient } from './api';
-import {
+import type {
   ThreatIntelScanRequest,
   ThreatIntelReport,
   VirusTotalReport,
