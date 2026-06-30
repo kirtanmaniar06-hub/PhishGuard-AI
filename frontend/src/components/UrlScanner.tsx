@@ -18,6 +18,8 @@ import { scanTarget } from '../services/threatIntelService';
 import { type ThreatIntelReport } from '../types/threatIntel';
 import { predictUrl } from '../services/mlService';
 import type { MLPredictionResponse } from '../types/ml';
+import { fetchExplanation } from '../services/explanationService';
+import type { ExplanationResponse } from '../types/explanation';
 
 /* ── Helpers ──────────────────────────────────────────── */
 const URL_REGEX =
@@ -314,6 +316,98 @@ const MlPredictionCard: React.FC<{ ml: MLPredictionResponse }> = ({ ml }) => {
   );
 };
 
+/** AI / Heuristic verdict explanation panel */
+const ExplanationPanel: React.FC<{ explanation: ExplanationResponse }> = ({ explanation }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(explanation.explanation);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Helper to highlight suspicious indicators in the text
+  const highlightText = (text: string) => {
+    const keywords = [
+      /insecure HTTP/gi,
+      /VirusTotal/gi,
+      /Google Safe Browsing/gi,
+      /AbuseIPDB/gi,
+      /blacklisted/gi,
+      /phishing/gi,
+      /suspicious/gi,
+      /mimic trusted brand/gi,
+      /high-risk keywords/gi,
+      /IP address/gi
+    ];
+
+    let parts: { text: string; isHighlight: boolean }[] = [{ text, isHighlight: false }];
+
+    keywords.forEach((regex) => {
+      const newParts: { text: string; isHighlight: boolean }[] = [];
+      parts.forEach((part) => {
+        if (part.isHighlight) {
+          newParts.push(part);
+          return;
+        }
+        const splitText = part.text.split(regex);
+        const matches = part.text.match(regex);
+
+        splitText.forEach((segment, index) => {
+          newParts.push({ text: segment, isHighlight: false });
+          if (matches && index < matches.length) {
+            newParts.push({ text: matches[index], isHighlight: true });
+          }
+        });
+      });
+      parts = newParts;
+    });
+
+    return parts.map((part, idx) => (
+      <span key={idx} className={part.isHighlight ? 'text-cyber-red font-bold underline decoration-cyber-red/30' : ''}>
+        {part.text}
+      </span>
+    ));
+  };
+
+  const isAi = explanation.provider === 'ai';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-lg border border-cyber-cyan/10 bg-cyber-dark-card/25 p-5 space-y-4"
+    >
+      <div className="flex justify-between items-center">
+        <h5 className="font-mono text-[10px] font-bold text-cyber-cyan uppercase tracking-wider flex items-center gap-1.5">
+          <span>⚡ Verdict Explanation</span>
+          <span className="text-[8px] text-gray-500 normal-case font-normal">
+            ({isAi ? 'AI Engine' : 'Deterministic Rules Fallback'})
+          </span>
+        </h5>
+        <button
+          onClick={handleCopy}
+          className="text-gray-500 hover:text-cyber-cyan transition-colors text-[9px] font-mono flex items-center gap-1 cursor-pointer"
+        >
+          {copied ? (
+            <span className="text-cyber-green">✓ Copied!</span>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      <p className="font-mono text-[11px] text-gray-300 leading-relaxed">
+        {highlightText(explanation.explanation)}
+      </p>
+    </motion.div>
+  );
+};
+
 /** Deep Threat Intelligence details panel */
 const ThreatIntelDetailsCard: React.FC<{ intel: ThreatIntelReport }> = ({ intel }) => {
   const score = Math.round(intel.max_reputation_score);
@@ -593,6 +687,11 @@ export const UrlScanner: React.FC = () => {
   const [mlLoading, setMlLoading] = useState(false);
   const [mlError, setMlError] = useState<string | null>(null);
 
+  // Explanation state
+  const [explainResult, setExplainResult] = useState<ExplanationResponse | null>(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+
   /* Load history on mount */
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -617,6 +716,8 @@ export const UrlScanner: React.FC = () => {
     setIntelError(null);
     setMlResult(null);
     setMlError(null);
+    setExplainResult(null);
+    setExplainError(null);
 
     // Client-side validation
     const err = validateUrl(url);
@@ -629,10 +730,16 @@ export const UrlScanner: React.FC = () => {
     setIsLoading(true);
     setIntelLoading(true);
     setMlLoading(true);
+    setExplainLoading(true);
+
+    const targetUrl = url.trim();
+    let heuristicResult: ScanResult | null = null;
+    let threatIntelReport = {};
 
     try {
-      const data = await createScan({ target: url.trim(), type: 'URL' });
+      const data = await createScan({ target: targetUrl, type: 'URL' });
       setResult(data);
+      heuristicResult = data;
       setUrl('');
       // Refresh history list
       loadHistory();
@@ -647,8 +754,9 @@ export const UrlScanner: React.FC = () => {
     }
 
     try {
-      const intelData = await scanTarget({ target: url.trim() });
+      const intelData = await scanTarget({ target: targetUrl });
       setIntelResult(intelData);
+      threatIntelReport = intelData;
     } catch (error: any) {
       const msg =
         error?.response?.data?.detail ||
@@ -660,7 +768,7 @@ export const UrlScanner: React.FC = () => {
     }
 
     try {
-      const mlData = await predictUrl({ url: url.trim() });
+      const mlData = await predictUrl({ url: targetUrl });
       setMlResult(mlData);
     } catch (error: any) {
       const msg =
@@ -670,6 +778,30 @@ export const UrlScanner: React.FC = () => {
       setMlError(msg);
     } finally {
       setMlLoading(false);
+    }
+
+    // Run explanation query sequentially using the computed results
+    try {
+      const explainData = await fetchExplanation({
+        url: targetUrl,
+        verdict: heuristicResult?.status || 'SUSPICIOUS',
+        heuristics: {
+          is_https: targetUrl.toLowerCase().startsWith('https://'),
+          url_length: targetUrl.length,
+          subdomains: { count: targetUrl.split('.').length - 2 },
+          suspicious_keywords: { all_matched: heuristicResult?.indicators || [] }
+        },
+        threat_intel: threatIntelReport
+      });
+      setExplainResult(explainData);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.detail ||
+        error?.message ||
+        'Failed to generate prediction explanation.';
+      setExplainError(msg);
+    } finally {
+      setExplainLoading(false);
     }
   };
 
@@ -840,6 +972,30 @@ export const UrlScanner: React.FC = () => {
               {mlResult && !mlLoading && (
                 <MlPredictionCard ml={mlResult} />
               )}
+
+              {/* Dynamic Explanation Panel */}
+              {explainLoading && (
+                <div className="rounded-lg border border-cyan-500/10 bg-cyber-dark-card/20 p-5 animate-pulse space-y-2">
+                  <div className="h-3 w-32 bg-gray-800 rounded" />
+                  <div className="h-2 w-full bg-gray-900 rounded" />
+                </div>
+              )}
+
+              {explainError && (
+                <div className="bg-cyber-red/5 border border-cyber-red/20 rounded-lg p-4 flex gap-3">
+                  <svg className="w-5 h-5 text-cyber-red shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="font-mono text-xs text-cyber-red font-bold">EXPLANATION_FAILURE</p>
+                    <p className="font-mono text-[9px] text-red-400/80 mt-0.5">{explainError}</p>
+                  </div>
+                </div>
+              )}
+
+              {explainResult && !explainLoading && (
+                <ExplanationPanel explanation={explainResult} />
+              )}
               
               {/* Dynamic Threat Intelligence Sub-state Panel */}
               {intelLoading && <ThreatIntelSkeleton />}
@@ -913,6 +1069,8 @@ export const UrlScanner: React.FC = () => {
                     setIntelError(null);
                     setMlResult(null);
                     setMlError(null);
+                    setExplainResult(null);
+                    setExplainError(null);
                   } else {
                     setSelectedHistory(scan);
                     setResult(null);
@@ -920,12 +1078,16 @@ export const UrlScanner: React.FC = () => {
                     setIntelError(null);
                     setMlResult(null);
                     setMlError(null);
+                    setExplainResult(null);
+                    setExplainError(null);
                     
                     // Fetch threat intel on-demand for selected history item
                     setIntelLoading(true);
+                    let threatIntelReport = {};
                     try {
                       const intelData = await scanTarget({ target: scan.target });
                       setIntelResult(intelData);
+                      threatIntelReport = intelData;
                     } catch (error: any) {
                       const msg =
                         error?.response?.data?.detail ||
@@ -949,6 +1111,31 @@ export const UrlScanner: React.FC = () => {
                       setMlError(msg);
                     } finally {
                       setMlLoading(false);
+                    }
+
+                    // Fetch explanation on-demand for selected history item
+                    setExplainLoading(true);
+                    try {
+                      const explainData = await fetchExplanation({
+                        url: scan.target,
+                        verdict: scan.status,
+                        heuristics: {
+                          is_https: scan.target.toLowerCase().startsWith('https://'),
+                          url_length: scan.target.length,
+                          subdomains: { count: scan.target.split('.').length - 2 },
+                          suspicious_keywords: { all_matched: scan.indicators }
+                        },
+                        threat_intel: threatIntelReport
+                      });
+                      setExplainResult(explainData);
+                    } catch (error: any) {
+                      const msg =
+                        error?.response?.data?.detail ||
+                        error?.message ||
+                        'Failed to generate prediction explanation.';
+                      setExplainError(msg);
+                    } finally {
+                      setExplainLoading(false);
                     }
                   }
                 }}

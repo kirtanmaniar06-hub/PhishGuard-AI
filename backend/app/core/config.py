@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     GOOGLE_SAFE_BROWSING_API_KEY: str = ""
     ABUSEIPDB_API_KEY: str = ""
 
+    # ── AI Explanation ───────────────────────────────────
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL: str = "gpt-4o-mini"
+
     # ── Threat Intel Rate Limiting ───────────────────────
     # Max requests per minute per source per worker
     THREAT_INTEL_RATE_LIMIT_PER_MINUTE: int = 10
