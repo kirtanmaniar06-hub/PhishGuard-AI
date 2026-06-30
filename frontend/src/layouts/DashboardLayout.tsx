@@ -59,6 +59,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       ),
     },
     {
+      name: 'Email Scanner',
+      path: '/email-scanner',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5" />
+        </svg>
+      ),
+    },
+    {
       name: 'Incident Reports',
       path: '/reports',
       icon: (
